@@ -25,9 +25,9 @@ print_help()
 
 exit_with_error()
 {
-  printf "Error: ${1}\n"
+  echo "Error: ${1}"
   if [ $2 -eq 1 ]; then
-    printf "Try 'ewac --help' for more information\n"
+    echo "Try 'ewac --help' for more information"
   fi
   exit 1
 }
@@ -85,7 +85,7 @@ add_tunnel_to_server()
 
 connect_to_server()
 {
-  local server_name=$1
+  local server_name="$1"
   local server_host=""
   local server_user=""
   local server_port="22"
@@ -97,6 +97,10 @@ connect_to_server()
   fi
 
   local server_config_file="${config_path}/servers/${server_name}.config"
+  if ! [ -f ${server_config_file} ]; then
+    exit_with_error "no server found with name $server_name" 0
+  fi
+
   while IFS= read cur_line
   do
     if [[ "$cur_line" =~ $argument_regex ]]; then
@@ -115,6 +119,9 @@ connect_to_server()
           ;;
         "local_tunnel" )
           local_tunnels+=($value)
+          ;;
+        "remote_tunnel" )
+          remote_tunnels+=($value)
           ;;
       esac
     fi
@@ -143,14 +150,94 @@ connect_to_server()
   ssh ${args_string}
 }
 
-edit_server()
+delete_server()
 {
-  echo "Not implemented"
+  server_name="$1"
+  local server_config_file="${config_path}/servers/${server_name}.config"
+  if ! [ -f ${server_config_file} ]; then
+    exit_with_error "no server found with name $server_name" 0
+  fi
+
+  printf "Really delete $server_name? (y/n): "
+  read choice
+
+  if [ "$choice" == "Y" ] || [ "$choice" == "y"]; then
+    rm ${server_config_file}
+  else
+    echo "$server_name will not be deleted"
+  fi
+}
+
+delete_server_tunnel()
+{
+  exit_with_error "not implemented yet" 0
+
+  server_name="$1"
+  local server_config_file="${config_path}/servers/${server_name}.config"
+  if ! [ -f ${server_config_file} ]; then
+    exit_with_error "no server found with name $server_name" 0
+  fi
 }
 
 list_servers()
 {
-  echo ${servers[@]}
+  for server_name in ${servers[@]}; do
+    echo "$server_name"
+  done
+}
+
+list_server_details()
+{
+  server_name="$1"
+  local server_host=""
+  local server_user=""
+  local server_port=""
+  declare -a local_tunnels
+  declare -a remote_tunnels
+
+  local server_config_file="${config_path}/servers/${server_name}.config"
+  if ! [ -f ${server_config_file} ]; then
+    exit_with_error "no server found with name $server_name" 0
+  fi
+
+  while IFS= read cur_line
+  do
+    if [[ "$cur_line" =~ $argument_regex ]]; then
+      local key="${BASH_REMATCH[1]}"
+      local value="${BASH_REMATCH[2]}"
+
+      case $key in
+        "host" )
+          server_host="$value"
+          ;;
+        "user" )
+          server_user="$value"
+          ;;
+        "port" )
+          server_port="$value"
+          ;;
+        "local_tunnel" )
+          local_tunnels+=($value)
+          ;;
+        "remote_tunnel" )
+          remote_tunnels+=($value)
+          ;;
+      esac
+    fi
+  done < ${server_config_file}
+
+  echo "$server_name"
+  echo "Host: $server_host"
+  echo "User: $server_user"
+  echo "Port: $server_port"
+  echo "Local tunnels:"
+  for (( c=0; c<${#local_tunnels[@]}; c++ )); do
+    printf "%-3s%s" "$c" "${local_tunnels[$c]}"
+  done
+  echo "Remote tunnels:"
+  for (( c=0; c<${#remote_tunnels[@]}; c++ )); do
+    printf "%-3s%s" "$c" "${remote_tunnels[$c]}"
+  done
 }
 
 load_servers()
@@ -208,10 +295,18 @@ for (( i=0; i<$arg_count; i++ )); do
       fi
       exit 0
       ;;
-    -e | --edit )
+    -d | --delete )
+      delete_server
+      exit 0
       ;;
     -l | --list )
-      list_servers
+      if (( i == $arg_count - 1 )); then
+        list_servers
+      elif (( i + 1 == $arg_count - 1 )); then
+        list_server_details ${args[(($i + 1))]}
+      else
+        exit_with_error "incorrect arguments" 1
+      fi
       exit 0
       ;;
     -h | --help )
