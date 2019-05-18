@@ -8,8 +8,8 @@ print_help()
 {
   printf "\nManages SSH server connections\n\n"
   printf "Usage:\n"
-  printf "  ewac -a <server name> [--local-tunnel=<arg>|--remote-tunnel=<arg>]\n"
-  printf "  ewac -c <server name> [--username=<arg>]\n"
+  printf "  ewac -a [[server name] [--local-tunnel=<arg>|--remote-tunnel=<arg>]]\n"
+  printf "  ewac -c <server name> [username]\n"
   printf "  ewac -d <server name> [--tunnel=<arg>]\n"
   printf "  ewac -l [server name]\n\n"
   printf "Options:\n"
@@ -17,11 +17,19 @@ print_help()
   printf "%-5s%-22s%s\n" "" "--local-tunnel=<arg>" "add a local forwarding tunnel"
   printf "%-5s%-22s%s\n" "" "--remote-tunnel=<arg>" "add a remote forwarding tunnel"
   printf "%-5s%-22s%s\n" " -c" "--connect" "connect to a named server"
-  printf "%-5s%-22s%s\n" "" "--username=<arg>" "use this username"
   printf "%-5s%-22s%s\n" " -d" "--delete" "delete a named server"
   printf "%-5s%-22s%s\n" "" "--tunnel=<arg>" "delete the tunnel at this index"
   printf "%-5s%-22s%s\n" " -l" "--list" "list saved servers or settings for a named server"
   printf "%-5s%-22s%s\n\n" " -h" "--help" "display help message and exit"
+}
+
+exit_with_error()
+{
+  printf "Error: ${1}\n"
+  if [ $2 -eq 1 ]; then
+    printf "Try 'ewac --help' for more information\n"
+  fi
+  exit 1
 }
 
 add_server()
@@ -36,8 +44,7 @@ add_server()
 
   local server_config_file="${config_path}/servers/${server_name}.config"
   if [ -f ${server_config_file} ]; then
-    echo "A server with that name already exists"
-    exit 1
+    exit_with_error "a server with that name already exists" 0
   fi
 
   printf "Host: "
@@ -60,8 +67,7 @@ add_tunnel_to_server()
 
   local server_config_file="${config_path}/servers/${server_name}.config"
   if ! [ -f ${server_config_file} ]; then
-    echo "Error: no server found with name $server_name"
-    exit 1
+    exit_with_error "no server found with name $server_name" 0
   fi
 
   case $tunnel_type in
@@ -72,8 +78,7 @@ add_tunnel_to_server()
       echo "remote_tunnel: ${tunnel_string}" >> ${server_config_file}
       ;;
     * )
-      echo "Error: Unsupported tunnel type"
-      exit 1
+      exit_with_error "unsupported tunnel type" 1
       ;;
   esac
 }
@@ -88,8 +93,7 @@ connect_to_server()
   declare -a remote_tunnels
 
   if [ "$server_name" = "" ]; then
-    echo "Error: Server name cannot be empty"
-    exit 1
+    exit_with_error "server name cannot be empty" 0
   fi
 
   local server_config_file="${config_path}/servers/${server_name}.config"
@@ -116,12 +120,14 @@ connect_to_server()
     fi
   done < ${server_config_file}
 
+  if [ $# -gt 1 ]; then
+    server_user="$2"
+  fi
+
   if [ "$server_user" = "" ]; then
-    echo "Error: The user name cannot be empty. Check server settings"
-    exit 1
+    exit_with_error "the user name cannot be empty. Check server settings" 0
   elif [ "$server_host" = "" ]; then
-    echo "Error: The host cannot be empty. Check server settings"
-    exit 1
+    exit_with_error "the host cannot be empty. Check server settings" 0
   fi
 
   local args_string="${server_user}@${server_host} -p ${server_port}"
@@ -160,8 +166,7 @@ load_servers()
 }
 
 if ! [ -d "${config_path}" ]; then
-  printf "Error: Could not find config folder '$config_path'\n"
-  exit 1
+  exit_with_error "could not find config folder '$config_path'\n" 0
 fi
 
 if ! [ -d "${config_path}/servers" ]; then
@@ -181,22 +186,26 @@ load_servers
 for (( i=0; i<$arg_count; i++ )); do
   case ${args[$i]} in
     -a | --add )
-      if ! [ $i -lt $arg_count ]; then
+      if (( i == $arg_count - 1 )); then
         add_server
       elif (( i + 3 < arg_count )); then
         add_tunnel_to_server ${args[(($i + 1))]} ${args[(($i + 2))]} ${args[(($i + 3))]}
       else
-        printf "Error: Incorrect arguments\n\nUsage: ewac -a <server name> [--local-tunnel=<arg>|--remote-tunnel=<arg>]\n"
-        exit 1
+        exit_with_error "incorrect arguments" 1
       fi
       exit 0
       ;;
     -c | --connect )
       i=$((i + 1))
       if ! [ $i -lt $arg_count ]; then
-        printf "Error: Missing server name"
+        exit_with_error "missing server name" 0
+      elif (( i + 1 == arg_count )); then
+        connect_to_server ${args[$i]}
+      elif (( i + 2 == arg_count)); then
+        connect_to_server ${args[$i]} ${args[(($i + 1))]}
+      else
+        exit_with_error "incorrect arguments" 1
       fi
-      connect_to_server ${args[$i]}
       exit 0
       ;;
     -e | --edit )
@@ -215,7 +224,3 @@ for (( i=0; i<$arg_count; i++ )); do
   esac
   shift
 done
-
-# Connect to the task server
-# ssh ${user}@ec2-34-253-232-79.eu-west-1.compute.amazonaws.com -p ${port}
-
