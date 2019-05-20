@@ -232,11 +232,11 @@ list_server_details()
   echo "Port: $server_port"
   echo "Local tunnels:"
   for (( c=0; c<${#local_tunnels[@]}; c++ )); do
-    printf "%-3s%s" "$c" "${local_tunnels[$c]}"
+    printf "%-3s%s\n" "$c" "${local_tunnels[$c]}"
   done
   echo "Remote tunnels:"
   for (( c=0; c<${#remote_tunnels[@]}; c++ )); do
-    printf "%-3s%s" "$c" "${remote_tunnels[$c]}"
+    printf "%-3s%s\n" "$c" "${remote_tunnels[$c]}"
   done
 }
 
@@ -253,7 +253,7 @@ load_servers()
 }
 
 if ! [ -d "${config_path}" ]; then
-  exit_with_error "could not find config folder '$config_path'\n" 0
+  exit_with_error "could not find config folder '$config_path'" 0
 fi
 
 if ! [ -d "${config_path}/servers" ]; then
