@@ -253,7 +253,7 @@ load_servers()
 }
 
 if ! [ -d "${config_path}" ]; then
-  exit_with_error "could not find config folder '$config_path'" 0
+  mkdir -p "$config_path"
 fi
 
 if ! [ -d "${config_path}/servers" ]; then
